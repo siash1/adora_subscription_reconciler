@@ -4,6 +4,7 @@ import { foldStoreEvents, storeContribution } from '../domain/store';
 import { pickCanonical } from '../domain/reconcile';
 import { CanonicalEntitlement, SourceContribution, StoreEvent } from '../domain/types';
 import { scheduleExpiryNotification } from './notifications';
+import { writeAudit } from './audit';
 
 export interface ReconcileOptions {
   eventId?: string | null;
@@ -98,6 +99,10 @@ export async function reconcileUserTx(
        updated_at = EXCLUDED.updated_at`,
     [userId, next.active, next.source, nextExpiresAt, next.reason, lastChangedAt, now],
   );
+
+  if (changed) {
+    await writeAudit(client, userId, options.eventId ?? null, prev, next, now);
+  }
 
   if (next.active && next.expiresAtMs !== null) {
     await scheduleExpiryNotification(client, userId, next.expiresAtMs, nowMs);
