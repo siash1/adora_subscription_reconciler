@@ -101,6 +101,29 @@ curl localhost:3000/users/u_42/entitlement
 
 Registers a user as carrier-billed so the poller will include them. (Not in the original spec; see Design decisions.)
 
+### `GET /users/:id/timeline` _(stretch)_
+
+Returns the reconstructed history of the user's entitlement changes from the audit log.
+
+```bash
+curl localhost:3000/users/u_42/timeline
+```
+
+```json
+{
+  "userId": "u_42",
+  "entries": [
+    {
+      "at": "2026-05-20T11:23:00.000Z",
+      "eventId": "evt_abc123",
+      "source": "STORE",
+      "previous": null,
+      "next": { "active": true, "source": "STORE", "expiresAt": "2026-06-19T11:23:00.000Z", "reason": "INITIAL_PURCHASE" }
+    }
+  ]
+}
+```
+
 ### Mock carrier — `GET /mock/carrier/plan?userId=...`
 
 Served by the `mock-carrier` service. Randomised **85% active / 10% inactive / 5% api_error**. Accepts `?force=active|inactive|api_error` for deterministic local testing.
@@ -134,6 +157,10 @@ Every reconcile runs inside a transaction guarded by `pg_advisory_xact_lock(hash
 - **Longest-lived grant wins.** This makes `active` and `expiresAt` internally consistent ("premium until your last grant lapses"). The alternative — a fixed channel priority — would let a still-active carrier plan be hidden behind an expired store grant, which is wrong for the headline question. The tradeoff is that an active indefinite grant (carrier/marketplace) hides a finite store expiry, which also correctly suppresses a premature "expires soon" notification.
 - **Marketplace grant + carrier enroll endpoints.** The spec only describes a marketplace *revoke* and carrier *polling*, but both imply a prior grant/enrolment that has to originate somewhere. Rather than seed rows by hand, those two endpoints make the system self-contained and testable.
 - **Per-user advisory lock** instead of table locks keeps unrelated users fully parallel while still serializing each user's reconciliation.
+
+## Stretch: audit log and timeline
+
+Every time a user's canonical entitlement actually changes, the reconciler writes an `entitlement_audit` row inside the same transaction: the triggering store `event_id` (null for carrier/marketplace-driven changes), the new `source`, and the full previous and next state snapshots. `GET /users/:id/timeline` replays those rows in order. No-op reconciles (duplicates, idempotent re-grants) write nothing, so the timeline only contains real transitions.
 
 ## What I'd change with another week
 
