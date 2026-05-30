@@ -146,6 +146,28 @@ it('surfaces the expiration reason after a grant lapses to NONE', async () => {
   expect(view.expiresAt).toBeNull();
 });
 
+it('surfaces RENEWAL as the reason after a renewal extends the period', async () => {
+  const now = T0 + MONTH + DAY;
+  await ingestStoreEvent(storeEvent('p', 'u_rr', 'INITIAL_PURCHASE', T0), now);
+  await ingestStoreEvent(storeEvent('r', 'u_rr', 'RENEWAL', T0 + MONTH), now);
+
+  const view = await getEntitlement('u_rr');
+  expect(view.active).toBe(true);
+  expect(view.reason).toBe('RENEWAL');
+  expect(view.expiresAt).toBe(new Date(T0 + 2 * MONTH).toISOString());
+});
+
+it('surfaces BILLING_ISSUE as the reason while still entitled', async () => {
+  const now = T0 + 10 * DAY;
+  await ingestStoreEvent(storeEvent('p', 'u_bi', 'INITIAL_PURCHASE', T0), now);
+  await ingestStoreEvent(storeEvent('b', 'u_bi', 'BILLING_ISSUE', T0 + DAY), now);
+
+  const view = await getEntitlement('u_bi');
+  expect(view.active).toBe(true);
+  expect(view.source).toBe('STORE');
+  expect(view.reason).toBe('BILLING_ISSUE');
+});
+
 it('does not bump last_changed_at on an idempotent reconcile', async () => {
   await ingestStoreEvent(storeEvent('p', 'u_idem', 'INITIAL_PURCHASE', T0), T0 + DAY);
   const before = await entitlementRow('u_idem');

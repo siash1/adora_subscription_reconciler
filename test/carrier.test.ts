@@ -78,6 +78,23 @@ it('does not re-poll a user within the interval on a later cycle', async () => {
   expect(calls.get('u_once')).toBe(1);
 });
 
+it('does not grant premium for an enrolled but never-polled user', async () => {
+  await enrollCarrier('u_unknown');
+  const view = await getEntitlement('u_unknown');
+  expect(view.active).toBe(false);
+  expect(view.source).toBe('NONE');
+});
+
+it('does not fabricate carrier state for a poll result on a non-enrolled user', async () => {
+  await applyCarrierResult('u_noenroll', 'active', T0 + DAY);
+  const view = await getEntitlement('u_noenroll');
+  expect(view.active).toBe(false);
+  expect(view.source).toBe('NONE');
+
+  const { rows } = await pool.query('SELECT count(*)::int AS n FROM carrier_state WHERE user_id = $1', ['u_noenroll']);
+  expect(rows[0].n).toBe(0);
+});
+
 it('converges a concurrent carrier poll and store ingest for the same user', async () => {
   const now = T0 + DAY;
   await enrollCarrier('u_mix');

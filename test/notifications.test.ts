@@ -112,6 +112,19 @@ it('does not send a scheduled notification once the grant has lapsed', async () 
   expect(sent).toBe(0);
 });
 
+it('does not send a notification before its scheduled_for time', async () => {
+  const now = T0 + DAY;
+  await seedEntitlement('u_future', now + 2 * DAY, now);
+  await pool.query(
+    `INSERT INTO notifications (user_id, type, target_expires_at, scheduled_for)
+     VALUES ($1, 'PREMIUM_EXPIRES_SOON', $2, $3)`,
+    ['u_future', new Date(now + 2 * DAY), new Date(now + DAY)],
+  );
+
+  const sent = await sendDueNotifications(now);
+  expect(sent).toBe(0);
+});
+
 it('schedules a separate notification when a renewal sets a new expiry', async () => {
   const now = T0 + MONTH - 12 * HOUR;
   await ingestStoreEvent(storeEvent('p', 'u_r', 'INITIAL_PURCHASE', T0), now);
