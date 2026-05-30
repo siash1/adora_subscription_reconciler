@@ -44,10 +44,11 @@ npm run dev                         # api + workers with reload
 ### Tests
 
 ```bash
+docker compose up -d db    # start only Postgres (host port 5433)
 npm test
 ```
 
-Tests spin up against a real Postgres. By default they use `postgres://<you>@localhost:5432/reconciler_test` and create that database automatically; override with `DATABASE_URL`.
+Tests run against a real Postgres. With no `DATABASE_URL` set they use `postgres://postgres:postgres@localhost:5433/reconciler_test` (the compose database) and create that test database automatically. Point `DATABASE_URL` at any other Postgres to override.
 
 ## API
 
