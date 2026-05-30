@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: reconciler
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d reconciler"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  mock-carrier:
+    image: adora-reconciler:latest
+    command: ["node", "dist/mock/server.js"]
+    environment:
+      MOCK_CARRIER_PORT: "4000"
+    ports:
+      - "4000:4000"
+
+  api:
+    build: .
+    image: adora-reconciler:latest
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/reconciler
+      PORT: "3000"
+      ROLE: api
+      CARRIER_BASE_URL: http://mock-carrier:4000
+    ports:
+      - "3000:3000"
+
+  worker:
+    image: adora-reconciler:latest
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/reconciler
+      ROLE: worker
+      CARRIER_BASE_URL: http://mock-carrier:4000
+      CARRIER_POLL_INTERVAL_MS: "300000"
+      NOTIFICATION_SCAN_INTERVAL_MS: "30000"
+    deploy:
+      replicas: 2
